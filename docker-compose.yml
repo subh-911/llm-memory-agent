@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  agent:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # LLM Configuration
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-1000}
+      
+      # Memory Configuration
+      - MAX_CONVERSATION_HISTORY=${MAX_CONVERSATION_HISTORY:-10}
+      - MEMORY_DECAY_HOURS=${MEMORY_DECAY_HOURS:-24}
+      - ENABLE_SEMANTIC_MEMORY=${ENABLE_SEMANTIC_MEMORY:-true}
+      - ENABLE_EPISODIC_MEMORY=${ENABLE_EPISODIC_MEMORY:-true}
+      
+      # Redis Configuration
+      - USE_REDIS=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # Security
+      - API_KEYS=${API_KEYS:-}
+      
+      # Debug
+      - DEBUG=${DEBUG:-false}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
